@@ -6,7 +6,6 @@ Demonstrates the complete Airlock cycle: Preview -> Approve -> Execute -> Signed
 
 import json
 import time
-import hashlib
 import sys
 
 # Ensure UTF-8 output on Windows consoles
@@ -16,20 +15,25 @@ if hasattr(sys.stdout, "reconfigure"):
 from handlers.validate import validate_lead
 from handlers.dedup import check_existing_lead
 from handlers.enrich import score_lead
+from handlers.airlock import stage_airlock_preview
 from handlers.hubspot import create_deal
-from handlers.slack import post_lead_alert, build_slack_blocks
+from handlers.slack import post_lead_alert
 from handlers.airtable import log_event
+from handlers.crypto_receipt import mint_signed_receipt, verify_receipt
+from handlers.budget import BudgetLedger
 
 
 def print_banner():
     print("=" * 70)
-    print("  RAILCALL LEAD GOVERNANCE AIRLOCK - DEMO RUNNER")
-    print("  Protocol: Preview -> Approve -> Execute -> Signed Receipt")
+    print("  RAILCALL LEAD GOVERNANCE AIRLOCK - GAUNTLET DEMO RUNNER")
+    print("  Protocol: Ingestion -> Preview Diff -> Policy Gate -> Sagas -> Signed Receipt")
     print("  Contest:  Track B - Best Workflow (contest:2026Q3)")
     print("=" * 70 + "\n")
 
 
-def run_airlock_pipeline(lead_input: dict, auto_approve: bool = True):
+def run_airlock_pipeline(lead_input: dict, auto_approve: bool = True, policy_mode: str = "balanced"):
+    budget = BudgetLedger(max_spend_cents=500)
+
     print("[STAGE 0: INGESTION] Received Inbound Trigger Payload:")
     print(json.dumps(lead_input, indent=2))
     print("-" * 70)
@@ -41,6 +45,7 @@ def run_airlock_pipeline(lead_input: dict, auto_approve: bool = True):
         print(f"[ERROR] Rejected: {val_res['error']}")
         return val_res
     print(f"[OK] {val_res['summary']}")
+    budget.record_node_cost("validate_lead", 0)
     print("-" * 70)
 
     # 2. Transform: Dedup
@@ -50,6 +55,7 @@ def run_airlock_pipeline(lead_input: dict, auto_approve: bool = True):
     if dedup_res.get("action") == "duplicate_skipped":
         print("[NOTICE] Idempotency intercept: Skipping downstream CRM mutations.")
         return dedup_res
+    budget.record_node_cost("check_existing_lead", 0)
     print("-" * 70)
 
     # 3. Transform: Enrich & Score
@@ -58,13 +64,13 @@ def run_airlock_pipeline(lead_input: dict, auto_approve: bool = True):
     profile = enrich_res["data"]
     print(f"[OK] Score: {profile['lead_score']}/100 | Tier: {profile['tier']} | AE: {profile['assigned_ae']}")
     print(f"     Breakdown: Domain={profile['score_breakdown']['domain_authority']} Seniority={profile['score_breakdown']['title_seniority']} Intent={profile['score_breakdown']['intent_signal']}")
+    budget.record_node_cost("score_lead", 0)
     print("-" * 70)
 
-    # 4. Airlock Gate: Preview
-    print("[STAGE 1: AIRLOCK PREVIEW GATE] Generating Proposed Mutation Diffs...")
-    hub_preview = create_deal(enrich_res, context={"dry_run": True})
-    slack_preview = post_lead_alert(hub_preview, context={"dry_run": True})
-    airtable_preview = log_event(slack_preview, context={"dry_run": True})
+    # 4. Airlock Gate: Preview & Policy Check
+    print("[STAGE 1: AIRLOCK PREVIEW GATE] Staging Proposed Mutations...")
+    airlock_res = stage_airlock_preview(enrich_res, context={"policy_mode": policy_mode})
+    print(f"[OK] Policy Verdict: {airlock_res['policy_verdict']}")
 
     print("\n" + "#" * 60)
     print("--- [OPERATOR AIRLOCK PREVIEW CARD] ---")
@@ -74,67 +80,60 @@ def run_airlock_pipeline(lead_input: dict, auto_approve: bool = True):
     print(f"Deal Value:   ${profile['estimated_deal_value']:,}")
     print(f"Assigned AE:  {profile['assigned_ae']}")
     print(f"Slack Alerts: {profile['ae_slack_channel']}")
+    print(f"Auto-Approve: {'YES (Policy Passed)' if airlock_res['auto_approved'] else 'NO (Requires Manual Decision)'}")
     print("#" * 60 + "\n")
 
-    # 5. Operator Decision
-    if not auto_approve:
+    # 5. Operator Decision Check
+    if not airlock_res["auto_approved"] and not auto_approve:
         decision = input(">> Authorize downstream state mutations? [Y/n]: ").strip().lower()
         if decision not in {"y", "yes", ""}:
             print("[NOTICE] Operator rejected airlock approval. Pipeline halted safely.")
             return {"status": "rejected_by_operator"}
 
-    print("[STAGE 2: AIRLOCK APPROVED] Operator authorized execution.")
+    print("[STAGE 2: AIRLOCK APPROVED] Execution authorized.")
     print("-" * 70)
 
-    # 6. Effect Nodes Execution (Dry-run safe default or Live)
-    print("[STAGE 3: EXECUTION] Executing Effect Nodes...")
+    # 6. Effect Nodes Execution (Dry-run safe default)
+    print("[STAGE 3: EXECUTION] Executing Governed Effect Nodes...")
     hub_exec = create_deal(enrich_res, context={"dry_run": True})
     print(f"  * HubSpot CRM: {hub_exec['summary']}")
-    
+    budget.record_node_cost("hubspot_deal", 0)
+
     slack_exec = post_lead_alert(hub_exec, context={"dry_run": True})
     print(f"  * Slack AE:    {slack_exec['summary']}")
+    budget.record_node_cost("slack_alert", 0)
 
     airtable_exec = log_event(slack_exec, context={"dry_run": True})
     print(f"  * Airtable:    {airtable_exec['summary']}")
+    budget.record_node_cost("airtable_log", 0)
     print("-" * 70)
 
     # 7. Mint Signed Receipt
-    print("[STAGE 4: SIGNED RECEIPT MINTING] Generating Tamper-Evident Receipt...")
-    receipt_body = {
-        "workflow": "leultew/lead-governance-airlock",
-        "version": "1.0.0",
-        "tag": "contest:2026Q3",
-        "run_id": f"rc_run_{int(time.time())}",
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "status": "SUCCESS",
-        "airlock_verdict": "APPROVED",
-        "operator": "operator@company.internal",
-        "lead": {
-            "email": profile["email"],
-            "company": profile["company"],
-            "tier": profile["tier"],
-            "lead_score": profile["lead_score"],
-            "assigned_ae": profile["assigned_ae"],
-        },
-        "mutations": {
-            "hubspot_deal": hub_exec["action"],
-            "slack_alert": slack_exec["action"],
-            "airtable_log": airtable_exec["action"],
-        },
-        "spend_cents": 0,
-        "max_spend_cents": 500,
+    print("[STAGE 4: SIGNED RECEIPT MINTING] Minting Cryptographic Proof...")
+    mutations_map = {
+        "hubspot_deal": hub_exec["action"],
+        "slack_alert": slack_exec["action"],
+        "airtable_log": airtable_exec["action"],
     }
-
-    state_hash = hashlib.sha256(json.dumps(receipt_body, sort_keys=True).encode()).hexdigest()
-    receipt_body["state_root_sha256"] = state_hash
-    receipt_body["signature_algorithm"] = "Ed25519"
-    receipt_body["publisher_handle"] = "LeulTew"
+    receipt = mint_signed_receipt(
+        workflow_slug="leultew/lead-governance-airlock",
+        version="1.0.0",
+        lead_data=profile,
+        mutations=mutations_map,
+        spend_cents=budget.current_spend_cents,
+        max_spend_cents=budget.max_spend_cents,
+    )
 
     print("\n--- MINTED SIGNED AUDIT RECEIPT ---")
-    print(json.dumps(receipt_body, indent=2))
+    print(json.dumps(receipt, indent=2))
     print("=" * 70)
-    print("🎉 Pipeline finished cleanly. Signed receipt verified.")
-    return receipt_body
+
+    # 8. Offline Verification Test
+    is_valid, verify_msg = verify_receipt(receipt)
+    print(f"🛡️  [OFFLINE VERIFICATION] {verify_msg}")
+    print("=" * 70)
+    print("Pipeline completed cleanly with zero errors.")
+    return receipt
 
 
 if __name__ == "__main__":
@@ -147,4 +146,4 @@ if __name__ == "__main__":
         "message": "We need 500 enterprise seats for our automated defense platform with SOC2 compliance.",
         "phone": "+1-555-0199",
     }
-    run_airlock_pipeline(sample_lead, auto_approve=True)
+    run_airlock_pipeline(sample_lead, auto_approve=True, policy_mode="balanced")

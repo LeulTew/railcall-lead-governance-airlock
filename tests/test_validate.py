@@ -38,7 +38,7 @@ class TestValidateLead(unittest.TestCase):
         res = validate_lead(payload)
         self.assertEqual(res["status"], "error")
         self.assertEqual(res["action"], "rejected")
-        self.assertIn("not a valid email syntax", res["error"])
+        self.assertIn("valid RFC-compliant 'email'", res["error"])
 
     def test_disposable_domain_rejection(self):
         payload = {"email": "spammer@mailinator.com", "name": "Spam User"}

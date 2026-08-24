@@ -1,23 +1,41 @@
 """
-Lead Enrichment & ICP Scoring Transform Handler
+Lead Enrichment, ICP Scoring & AE Routing Transform Handler
+Implements Sub-issues 3.1, 3.2, 3.3, 3.4 (Epic 3)
 """
 
 import time
 from typing import Any, Dict, Optional, Tuple
 
-EXECUTIVE_KEYWORDS = {"vp", "vice president", "director", "head", "chief", "c-level", "founder", "co-founder", "partner", "cto", "ceo", "cfo", "cro", "ciso"}
-MANAGEMENT_KEYWORDS = {"manager", "lead", "principal", "staff", "senior manager", "architect"}
+EXECUTIVE_KEYWORDS = {
+    "vp", "vice president", "director", "head", "chief", "c-level",
+    "founder", "co-founder", "partner", "cto", "ceo", "cfo", "cro",
+    "ciso", "president", "managing director", "general manager"
+}
+
+MANAGEMENT_KEYWORDS = {
+    "manager", "lead", "principal", "staff", "senior manager",
+    "architect", "team lead", "group manager", "supervisor"
+}
 
 ENTERPRISE_DOMAINS = {
     "microsoft.com", "google.com", "amazon.com", "apple.com", "meta.com",
     "ibm.com", "oracle.com", "salesforce.com", "adobe.com", "cisco.com",
-    "netflix.com", "spotify.com", "uber.com", "airbnb.com", "stripe.com"
+    "netflix.com", "spotify.com", "uber.com", "airbnb.com", "stripe.com",
+    "snowflake.com", "datadoghq.com", "palantir.com", "crowdstrike.com",
+    "servicenow.com", "workday.com", "atlassian.com", "splunk.com",
+    "cyberdyne.io", "spacex.com", "tesla.com", "nvidia.com", "intel.com"
+}
+
+HIGH_INTENT_KEYWORDS = {
+    "enterprise", "pricing", "demo", "security", "soc2", "contract",
+    "seats", "teams", "annual", "procurement", "msa", "hipaa",
+    "sso", "saml", "dedicated", "sla", "migration", "custom quote"
 }
 
 
 def calculate_lead_score(data: Dict[str, Any]) -> Tuple[int, Dict[str, int]]:
     """
-    Computes an Ideal Customer Profile (ICP) lead score from 0 to 100 with sub-score attribution.
+    Computes an ICP lead score from 0 to 100 with sub-score attribution.
     """
     score_breakdown = {
         "domain_authority": 0,
@@ -55,9 +73,12 @@ def calculate_lead_score(data: Dict[str, Any]) -> Tuple[int, Dict[str, int]]:
         score_breakdown["company_profile"] = 5
 
     # 4. Message Intent Signal (Max 20)
-    message = data.get("message", "").strip()
-    if len(message) > 100 or any(intent in message.lower() for intent in ["pricing", "demo", "enterprise", "security", "contract", "seats", "teams"]):
+    message = data.get("message", "").strip().lower()
+    intent_hits = sum(1 for kw in HIGH_INTENT_KEYWORDS if kw in message)
+    if intent_hits >= 2 or len(message) > 120:
         score_breakdown["intent_signal"] = 20
+    elif intent_hits == 1 or len(message) > 40:
+        score_breakdown["intent_signal"] = 15
     elif len(message) > 0:
         score_breakdown["intent_signal"] = 10
     else:
@@ -108,8 +129,8 @@ def score_lead(payload: Dict[str, Any], context: Optional[Dict[str, Any]] = None
     Transform node: Enriches lead data, calculates ICP score, assigns tier and routing AE.
     """
     lead_data = payload.get("data", payload)
-    
-    # If prior deduplication step marked as duplicate_skipped, pass through
+
+    # Bypass if marked duplicate
     if payload.get("action") == "duplicate_skipped" or payload.get("is_duplicate"):
         return {
             "status": "ok",
