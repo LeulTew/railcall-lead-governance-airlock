@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "railcall-lead-governance-airlock"
+version = "1.0.0"
+description = "Governed inbound lead enrichment, deduplication, and AE dispatch workflow for the RailCall Runtime & Marketplace"
+readme = "README.md"
+authors = [{ name = "LeulTew", email = "leulman2@gmail.com" }]
+license = { text = "MIT" }
+requires-python = ">=3.9"
+keywords = ["railcall", "governance", "airlock", "automation", "crm", "workflow", "contest:2026Q3"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[project.scripts]
+railcall-lead-airlock = "handlers.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["handlers*"]

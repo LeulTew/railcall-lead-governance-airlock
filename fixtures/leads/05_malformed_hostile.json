@@ -1,0 +1,7 @@
+{
+  "email": "alex.hostile@enterprise.com",
+  "name": "<script>alert('xss')</script>Alex\x00\x1f Johnson\u200b",
+  "company": "Enterprise Corp; DROP TABLE leads;--",
+  "title": "Security Director <img src=x onerror=alert(1)>",
+  "message": "Testing input sanitization boundaries with hostile control characters and oversized buffer padding: "
+}

@@ -1,0 +1,28 @@
+{
+  "workflow": "leultew/lead-governance-airlock",
+  "version": "1.0.0",
+  "tag": "contest:2026Q3",
+  "run_id": "rc_run_1787601961",
+  "timestamp": "2026-08-24T20:06:01Z",
+  "status": "SUCCESS",
+  "airlock_verdict": "APPROVED",
+  "operator": "operator@company.internal",
+  "lead": {
+    "email": "sarah.connor@cyberdyne.io",
+    "company": "Cyberdyne Systems",
+    "domain": "cyberdyne.io",
+    "tier": "Enterprise",
+    "lead_score": 100,
+    "assigned_ae": "Taylor Vance (Enterprise AE)"
+  },
+  "mutations": {
+    "hubspot_deal": "dry_run_preview",
+    "slack_alert": "dry_run_preview",
+    "airtable_log": "dry_run_preview"
+  },
+  "spend_cents": 0,
+  "max_spend_cents": 500,
+  "state_root_sha256": "bacddf7fb6edb8eb558fd9a27ad40dc35d1bc752a391ab52d352ec78e5e24ae3",
+  "signature_algorithm": "Ed25519",
+  "publisher_handle": "LeulTew"
+}
