@@ -23,8 +23,14 @@ from handlers.budget import BudgetLedger
 
 
 def cmd_preview(args):
-    with open(args.file, "r", encoding="utf-8") as f:
-        raw_payload = json.load(f)
+    if not os.path.exists(args.file):
+        print(f"[ERROR] File not found: '{args.file}'")
+        sys.exit(1)
+
+    with open(args.file, "r", encoding="utf-8", errors="replace") as f:
+        raw_text = f.read()
+
+    raw_payload = parse_inbound_payload(raw_text)
 
     val = validate_lead(raw_payload)
     if val["status"] != "ok":
@@ -45,8 +51,14 @@ def cmd_preview(args):
 
 
 def cmd_execute(args):
-    with open(args.file, "r", encoding="utf-8") as f:
-        raw_payload = json.load(f)
+    if not os.path.exists(args.file):
+        print(f"[ERROR] File not found: '{args.file}'")
+        sys.exit(1)
+
+    with open(args.file, "r", encoding="utf-8", errors="replace") as f:
+        raw_text = f.read()
+
+    raw_payload = parse_inbound_payload(raw_text)
 
     budget = BudgetLedger(max_spend_cents=args.max_spend)
 
