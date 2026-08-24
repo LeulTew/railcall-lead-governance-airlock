@@ -1,0 +1,67 @@
+{
+  "slug": "leultew/lead-governance-airlock",
+  "version": "1.0.0",
+  "name": "Lead Governance Airlock",
+  "description": "Governed inbound lead enrichment, deduplication, and AE dispatch for RailCall",
+  "author": "LeulTew",
+  "license_required": false,
+  "commands": {
+    "validate_lead": {
+      "handler": "handlers/validate.py:validate_lead",
+      "description": "Validates inbound lead payload, normalizes fields, and detects disposable email domains",
+      "inputs": {
+        "email": { "type": "string", "required": true, "description": "Inbound prospect email" },
+        "name": { "type": "string", "required": false, "description": "Full name" },
+        "company": { "type": "string", "required": false, "description": "Company name" },
+        "title": { "type": "string", "required": false, "description": "Job title" },
+        "message": { "type": "string", "required": false, "description": "Inquiry message or request" },
+        "phone": { "type": "string", "required": false, "description": "Phone number" }
+      }
+    },
+    "check_existing_lead": {
+      "handler": "handlers/dedup.py:check_existing_lead",
+      "description": "Computes SHA-256 idempotency fingerprint and checks against recent triage cache",
+      "inputs": {
+        "data": { "type": "object", "required": true, "description": "Validated lead object" }
+      }
+    },
+    "score_lead": {
+      "handler": "handlers/enrich.py:score_lead",
+      "description": "Enriches profile, calculates ICP lead score (0-100), assigns tier and routing AE",
+      "inputs": {
+        "data": { "type": "object", "required": true, "description": "Deduplicated lead object" }
+      }
+    },
+    "create_hubspot_deal": {
+      "handler": "handlers/hubspot.py:create_deal",
+      "description": "Creates Contact and Deal in HubSpot CRM with dry-run support and rate-limit backoff",
+      "inputs": {
+        "data": { "type": "object", "required": true, "description": "Approved lead profile" },
+        "dry_run": { "type": "boolean", "default": true, "description": "Dry-run preview mode" }
+      }
+    },
+    "archive_hubspot_deal": {
+      "handler": "handlers/hubspot.py:archive_deal",
+      "description": "Saga rollback handler to archive HubSpot deal on downstream pipeline failure",
+      "inputs": {
+        "data": { "type": "object", "required": true, "description": "Created deal receipt data" }
+      }
+    },
+    "notify_slack_ae": {
+      "handler": "handlers/slack.py:post_lead_alert",
+      "description": "Dispatches rich Block Kit alert card to the sales AE channel",
+      "inputs": {
+        "data": { "type": "object", "required": true, "description": "Enriched deal data" },
+        "dry_run": { "type": "boolean", "default": true, "description": "Dry-run preview mode" }
+      }
+    },
+    "log_airtable": {
+      "handler": "handlers/airtable.py:log_event",
+      "description": "Appends immutable row to Airtable pipeline audit table",
+      "inputs": {
+        "data": { "type": "object", "required": true, "description": "Enriched deal data" },
+        "dry_run": { "type": "boolean", "default": true, "description": "Dry-run preview mode" }
+      }
+    }
+  }
+}
