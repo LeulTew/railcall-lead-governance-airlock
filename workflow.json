@@ -1,0 +1,85 @@
+{
+  "$schema": "https://railcall.ai/schemas/workflow-v1.json",
+  "name": "leultew/lead-governance-airlock",
+  "version": "1.0.0",
+  "category": "B. Vertical Workflow Templates (RevOps: Lead-to-Opportunity Enrichment)",
+  "tag": "contest:2026Q3",
+  "description": "Governed inbound lead enrichment, deduplication, and AE dispatch workflow with airlock approval gate, saga rollbacks, and Ed25519 tamper-evident receipts.",
+  "engine_spec": {
+    "version": "1.0.0",
+    "budget": {
+      "max_spend_cents": 500
+    },
+    "nodes": [
+      {
+        "id": "validate_lead",
+        "type": "transform",
+        "handler": "handlers.validate:validate_lead",
+        "description": "Sanitizes input, verifies RFC 5322 syntax, and rejects disposable email domains",
+        "input_schema": {
+          "type": "object",
+          "required": ["email"],
+          "properties": {
+            "email": { "type": "string", "format": "email" },
+            "name": { "type": "string" },
+            "company": { "type": "string" },
+            "title": { "type": "string" },
+            "message": { "type": "string" },
+            "phone": { "type": "string" }
+          }
+        }
+      },
+      {
+        "id": "check_existing_lead",
+        "type": "transform",
+        "depends_on": ["validate_lead"],
+        "handler": "handlers.dedup:check_existing_lead",
+        "description": "Evaluates SHA-256 idempotency fingerprint against dual-layer memory and SQLite state to prevent duplicate processing"
+      },
+      {
+        "id": "score_lead",
+        "type": "transform",
+        "depends_on": ["check_existing_lead"],
+        "handler": "handlers.enrich:score_lead",
+        "description": "Computes ICP score (0-100), assigns account tier (Enterprise/Mid-Market/SMB), and determines assigned AE"
+      },
+      {
+        "id": "preview_airlock",
+        "type": "airlock_gate",
+        "depends_on": ["score_lead"],
+        "handler": "handlers.airlock:stage_airlock_preview",
+        "template": "templates/lead_preview.md",
+        "description": "Stages structured before/after diffs for operator approval or automated policy sign-off"
+      },
+      {
+        "id": "create_hubspot_deal",
+        "type": "effect",
+        "depends_on": ["preview_airlock"],
+        "handler": "handlers.hubspot:create_deal",
+        "rollback_handler": "handlers.hubspot:archive_deal",
+        "description": "Creates or updates Contact and Deal in HubSpot CRM with 429 exponential backoff"
+      },
+      {
+        "id": "notify_slack_ae",
+        "type": "effect",
+        "depends_on": ["create_hubspot_deal"],
+        "handler": "handlers.slack:post_lead_alert",
+        "description": "Dispatches Block Kit priority alert card to AE Slack channel with 1-click CRM deal link"
+      },
+      {
+        "id": "log_airtable",
+        "type": "effect",
+        "depends_on": ["notify_slack_ae"],
+        "handler": "handlers.airtable:log_event",
+        "description": "Appends audit record to secondary Airtable telemetry base"
+      },
+      {
+        "id": "mint_signed_receipt",
+        "type": "receipt_mint",
+        "depends_on": ["log_airtable"],
+        "handler": "handlers.crypto_receipt:mint_signed_receipt",
+        "description": "Mints cryptographic Ed25519 signed receipt with non-tampered SHA-256 state root"
+      }
+    ]
+  }
+}
