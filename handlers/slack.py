@@ -10,6 +10,9 @@ import urllib.request
 from typing import Any, Dict, Optional
 
 
+from handlers.vault import get_secret
+
+
 def build_slack_blocks(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Builds an interactive Slack Block Kit card payload.
@@ -75,7 +78,7 @@ def post_lead_alert(payload: Dict[str, Any], context: Optional[Dict[str, Any]] =
         }
 
     dry_run = payload.get("dry_run", context.get("dry_run", True) if context else True)
-    webhook_url = os.getenv("SLACK_WEBHOOK_URL", "").strip()
+    webhook_url = (get_secret("SLACK_WEBHOOK_URL") or "").strip()
 
     slack_card = build_slack_blocks(lead_data)
 

@@ -9,6 +9,8 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict, Optional
 
+from handlers.vault import get_secret
+
 AIRTABLE_API_BASE = "https://api.airtable.com/v0"
 
 
@@ -30,9 +32,9 @@ def log_event(payload: Dict[str, Any], context: Optional[Dict[str, Any]] = None)
         }
 
     dry_run = payload.get("dry_run", context.get("dry_run", True) if context else True)
-    api_key = os.getenv("AIRTABLE_API_KEY", "").strip()
-    base_id = os.getenv("AIRTABLE_BASE_ID", "").strip()
-    table_name = os.getenv("AIRTABLE_TABLE_NAME", "Inbound Leads").strip()
+    api_key = (get_secret("AIRTABLE_API_KEY") or "").strip()
+    base_id = (get_secret("AIRTABLE_BASE_ID") or "").strip()
+    table_name = (get_secret("AIRTABLE_TABLE_NAME") or "Inbound Leads").strip()
 
     row_record = {
         "fields": {

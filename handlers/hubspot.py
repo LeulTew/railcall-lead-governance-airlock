@@ -10,6 +10,8 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict, Optional, Tuple
 
+from handlers.vault import get_secret
+
 HUBSPOT_API_BASE = "https://api.hubapi.com"
 
 
@@ -90,7 +92,7 @@ def create_deal(payload: Dict[str, Any], context: Optional[Dict[str, Any]] = Non
         }
 
     dry_run = payload.get("dry_run", context.get("dry_run", True) if context else True)
-    access_token = os.getenv("HUBSPOT_ACCESS_TOKEN", "").strip()
+    access_token = (get_secret("HUBSPOT_ACCESS_TOKEN") or "").strip()
 
     email = lead_data.get("email", "").strip().lower()
     name = lead_data.get("name", "")
@@ -229,7 +231,7 @@ def archive_deal(payload: Dict[str, Any], context: Optional[Dict[str, Any]] = No
             "receipt_meta": {"timestamp": time.time(), "cost_cents": 0},
         }
 
-    access_token = os.getenv("HUBSPOT_ACCESS_TOKEN", "").strip()
+    access_token = (get_secret("HUBSPOT_ACCESS_TOKEN") or "").strip()
     if not access_token:
         return {
             "status": "warning",

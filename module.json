@@ -4,8 +4,31 @@
   "name": "Lead Governance Airlock",
   "description": "Governed inbound lead enrichment, deduplication, and AE dispatch for RailCall. contest:2026Q3",
   "author": "LeulTew",
-  "license_required": false,
   "tag": "contest:2026Q3",
+  "mode": "airlock",
+  "risk": "low",
+  "license_required": false,
+  "publisher": {
+    "handle": "LeulTew",
+    "signature_alg": "ed25519"
+  },
+  "authentication": {
+    "type": "vault",
+    "keys": [
+      "HUBSPOT_ACCESS_TOKEN",
+      "SLACK_WEBHOOK_URL",
+      "AIRTABLE_API_KEY",
+      "AIRTABLE_BASE_ID"
+    ]
+  },
+  "egress": {
+    "allowed_domains": [
+      "api.hubapi.com",
+      "hooks.slack.com",
+      "api.airtable.com"
+    ],
+    "external_sockets_enforced": true
+  },
   "commands": {
     "validate_lead": {
       "handler": "handlers/validate.py:validate_lead",
