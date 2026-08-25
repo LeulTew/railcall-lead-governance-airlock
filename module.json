@@ -1,7 +1,8 @@
 {
-  "slug": "leultew/lead-governance-airlock",
-  "version": "1.0.0",
+  "id": "leultew/lead-governance-airlock",
+  "slug": "lead-governance-airlock",
   "name": "Lead Governance Airlock",
+  "version": "1.0.0",
   "description": "Governed inbound lead enrichment, deduplication, and AE dispatch for RailCall. contest:2026Q3",
   "author": "LeulTew",
   "tag": "contest:2026Q3",
@@ -29,78 +30,177 @@
     ],
     "external_sockets_enforced": true
   },
-  "commands": {
-    "validate_lead": {
-      "handler": "handlers/validate.py:validate_lead",
+  "commands": [
+    {
+      "id": "validate_lead",
+      "title": "Validate Inbound Lead",
       "description": "Validates inbound lead payload, normalizes fields, and detects disposable email domains",
       "side_effects": "none",
-      "inputs": {
-        "email": { "type": "string", "required": true, "description": "Inbound prospect email" },
-        "name": { "type": "string", "required": false, "description": "Full name" },
-        "company": { "type": "string", "required": false, "description": "Company name" },
-        "title": { "type": "string", "required": false, "description": "Job title" },
-        "message": { "type": "string", "required": false, "description": "Inquiry message or request" },
-        "phone": { "type": "string", "required": false, "description": "Phone number" }
-      }
+      "inputs": [
+        {
+          "id": "email",
+          "title": "Email",
+          "type": "string",
+          "required": true,
+          "description": "Inbound prospect email"
+        },
+        {
+          "id": "name",
+          "title": "Name",
+          "type": "string",
+          "required": false,
+          "description": "Full name"
+        },
+        {
+          "id": "company",
+          "title": "Company",
+          "type": "string",
+          "required": false,
+          "description": "Company name"
+        },
+        {
+          "id": "title",
+          "title": "Title",
+          "type": "string",
+          "required": false,
+          "description": "Job title"
+        },
+        {
+          "id": "message",
+          "title": "Message",
+          "type": "string",
+          "required": false,
+          "description": "Inquiry message or request"
+        }
+      ]
     },
-    "check_existing_lead": {
-      "handler": "handlers/dedup.py:check_existing_lead",
+    {
+      "id": "check_existing_lead",
+      "title": "Deduplicate Lead",
       "description": "Computes SHA-256 idempotency fingerprint and checks against recent triage cache",
       "side_effects": "none",
-      "inputs": {
-        "data": { "type": "object", "required": true, "description": "Validated lead object" }
-      }
+      "inputs": [
+        {
+          "id": "data",
+          "title": "Lead Object",
+          "type": "object",
+          "required": true,
+          "description": "Validated lead object"
+        }
+      ]
     },
-    "score_lead": {
-      "handler": "handlers/enrich.py:score_lead",
+    {
+      "id": "score_lead",
+      "title": "Score & Enrich Lead",
       "description": "Enriches profile, calculates ICP lead score (0-100), assigns tier and routing AE",
       "side_effects": "none",
-      "inputs": {
-        "data": { "type": "object", "required": true, "description": "Deduplicated lead object" }
-      }
+      "inputs": [
+        {
+          "id": "data",
+          "title": "Lead Object",
+          "type": "object",
+          "required": true,
+          "description": "Deduplicated lead object"
+        }
+      ]
     },
-    "preview_airlock": {
-      "handler": "handlers/airlock.py:stage_airlock_preview",
+    {
+      "id": "preview_airlock",
+      "title": "Stage Airlock Preview",
       "description": "Stages structured before/after diffs for operator approval or automated policy sign-off",
       "side_effects": "none",
-      "inputs": {
-        "data": { "type": "object", "required": true, "description": "Scored lead object" }
-      }
+      "inputs": [
+        {
+          "id": "data",
+          "title": "Lead Object",
+          "type": "object",
+          "required": true,
+          "description": "Scored lead object"
+        }
+      ]
     },
-    "create_hubspot_deal": {
-      "handler": "handlers/hubspot.py:create_deal",
+    {
+      "id": "create_hubspot_deal",
+      "title": "Create HubSpot Deal",
       "description": "Creates Contact and Deal in HubSpot CRM with dry-run support and rate-limit backoff",
       "side_effects": "external",
-      "inputs": {
-        "data": { "type": "object", "required": true, "description": "Approved lead profile" },
-        "dry_run": { "type": "boolean", "default": true, "description": "Dry-run preview mode" }
-      }
+      "inputs": [
+        {
+          "id": "data",
+          "title": "Lead Object",
+          "type": "object",
+          "required": true,
+          "description": "Approved lead profile"
+        },
+        {
+          "id": "dry_run",
+          "title": "Dry Run",
+          "type": "boolean",
+          "default": true,
+          "description": "Dry-run preview mode"
+        }
+      ]
     },
-    "archive_hubspot_deal": {
-      "handler": "handlers/hubspot.py:archive_deal",
+    {
+      "id": "archive_hubspot_deal",
+      "title": "Archive HubSpot Deal (Saga Rollback)",
       "description": "Saga rollback handler to archive HubSpot deal on downstream pipeline failure",
       "side_effects": "external",
-      "inputs": {
-        "data": { "type": "object", "required": true, "description": "Created deal receipt data" }
-      }
+      "inputs": [
+        {
+          "id": "data",
+          "title": "Lead Object",
+          "type": "object",
+          "required": true,
+          "description": "Created deal receipt data"
+        }
+      ]
     },
-    "notify_slack_ae": {
-      "handler": "handlers/slack.py:post_lead_alert",
+    {
+      "id": "notify_slack_ae",
+      "title": "Notify Slack AE",
       "description": "Dispatches rich Block Kit alert card to the sales AE channel",
       "side_effects": "external",
-      "inputs": {
-        "data": { "type": "object", "required": true, "description": "Enriched deal data" },
-        "dry_run": { "type": "boolean", "default": true, "description": "Dry-run preview mode" }
-      }
+      "inputs": [
+        {
+          "id": "data",
+          "title": "Lead Object",
+          "type": "object",
+          "required": true,
+          "description": "Enriched deal data"
+        },
+        {
+          "id": "dry_run",
+          "title": "Dry Run",
+          "type": "boolean",
+          "default": true,
+          "description": "Dry-run preview mode"
+        }
+      ]
     },
-    "log_airtable": {
-      "handler": "handlers/airtable.py:log_event",
+    {
+      "id": "log_airtable",
+      "title": "Log to Airtable Telemetry",
       "description": "Appends immutable row to Airtable pipeline audit table",
       "side_effects": "external",
-      "inputs": {
-        "data": { "type": "object", "required": true, "description": "Enriched deal data" },
-        "dry_run": { "type": "boolean", "default": true, "description": "Dry-run preview mode" }
-      }
+      "inputs": [
+        {
+          "id": "data",
+          "title": "Lead Object",
+          "type": "object",
+          "required": true,
+          "description": "Enriched deal data"
+        },
+        {
+          "id": "dry_run",
+          "title": "Dry Run",
+          "type": "boolean",
+          "default": true,
+          "description": "Dry-run preview mode"
+        }
+      ]
     }
-  }
+  ],
+  "manifest_version": 2,
+  "publisher_pubkey": "11123e75b7a2ea8753b2b1695aac0d59b2af41ae5caa4d25035f4c53d51d0418"
 }
